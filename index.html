@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Wheelchair Racing</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background-color: #000;
+      }
+      #app {
+        width: 100vw;
+        height: 100vh;
+      }
+      #ui {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        color: white;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        font-size: 1.5rem;
+        font-weight: bold;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        pointer-events: none;
+      }
+      #controls-help {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        color: rgba(255, 255, 255, 0.7);
+        font-family: monospace;
+        font-size: 1rem;
+        pointer-events: none;
+        text-align: right;
+      }
+    </style>
+    <!-- Import maps polyfill -->
+    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/",
+          "@dimforge/rapier3d": "https://cdn.skypack.dev/@dimforge/rapier3d-compat"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="ui">Speed: <span id="speedDisplay">0</span> km/h</div>
+    <div id="controls-help">
+      W / S : Accelerate / Brake<br>
+      A / D : Steer<br>
+      Space : Jump/Kick
+    </div>
+    <div id="app"></div>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
