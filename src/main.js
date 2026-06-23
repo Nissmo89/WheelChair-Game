@@ -67,6 +67,79 @@ function detectMobile() {
     return isMobileUA || (isTouch && !hasHover) || (isTouch && hasCoarsePointer && window.innerWidth <= 1024);
 }
 
+function getFullscreenElement() {
+    return document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || null;
+}
+
+function supportsFullscreen() {
+    const target = document.documentElement;
+    return !!(target.requestFullscreen || target.webkitRequestFullscreen || target.msRequestFullscreen);
+}
+
+async function requestGameFullscreen() {
+    if (!detectMobile() || getFullscreenElement() || !supportsFullscreen()) {
+        updateMobileFullscreenButton();
+        return true;
+    }
+
+    const target = document.documentElement;
+    try {
+        if (target.requestFullscreen) {
+            await target.requestFullscreen();
+        } else if (target.webkitRequestFullscreen) {
+            target.webkitRequestFullscreen();
+        } else if (target.msRequestFullscreen) {
+            target.msRequestFullscreen();
+        }
+
+        if (screen.orientation?.lock) {
+            screen.orientation.lock('landscape').catch(() => {});
+        }
+
+        updateMobileFullscreenButton();
+        return true;
+    } catch (error) {
+        console.warn('Unable to enter mobile fullscreen mode.', error);
+        updateMobileFullscreenButton();
+        return false;
+    }
+}
+
+async function exitGameFullscreen() {
+    if (!getFullscreenElement()) {
+        updateMobileFullscreenButton();
+        return true;
+    }
+
+    try {
+        if (document.exitFullscreen) {
+            await document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        } else if (document.msExitFullscreen) {
+            document.msExitFullscreen();
+        }
+
+        updateMobileFullscreenButton();
+        return true;
+    } catch (error) {
+        console.warn('Unable to exit mobile fullscreen mode.', error);
+        updateMobileFullscreenButton();
+        return false;
+    }
+}
+
+function updateMobileFullscreenButton() {
+    if (!mobileFullscreenBtn) {
+        mobileFullscreenBtn = document.getElementById('mobile-fullscreen-btn');
+    }
+    if (!mobileFullscreenBtn) return;
+
+    const shouldShow = detectMobile() && supportsFullscreen();
+    mobileFullscreenBtn.style.display = shouldShow ? 'flex' : 'none';
+    mobileFullscreenBtn.textContent = getFullscreenElement() ? 'EXIT FULL' : 'FULLSCREEN';
+}
+
 // Helper to resolve asset path dynamically
 function getAssetPath(url) {
     // If running raw in the browser (no Vite/bundler), assets are in the public/ folder.
@@ -106,6 +179,8 @@ function setupMobileControls() {
         if (mobileControls) mobileControls.style.display = 'none';
         if (controlsHelp) controlsHelp.style.display = 'block';
     }
+
+    updateMobileFullscreenButton();
 }
 
 // Mobile touch input states
@@ -113,6 +188,8 @@ let joystickTouchId = null;
 let joystickStartPos = { x: 0, y: 0 };
 let cameraTouchId = null;
 let previousTouchPosition = { x: 0, y: 0 };
+let mobileFullscreenBtn = null;
+let hasAttemptedMobileFullscreen = false;
 
 const defaultJoystickPos = {
     left: 80,
@@ -127,8 +204,9 @@ function initMobileEventListeners() {
     joystickBase = document.getElementById('joystick-base');
     joystickNub = document.getElementById('joystick-nub');
     mobileJumpBtn = document.getElementById('mobile-jump-btn');
+    mobileFullscreenBtn = document.getElementById('mobile-fullscreen-btn');
     
-    if (!joystickBase || !joystickNub || !mobileJumpBtn) return;
+    if (!joystickBase || !joystickNub || !mobileJumpBtn || !mobileFullscreenBtn) return;
     
     // Set default positions for small screens media query check
     const checkLandscape = window.matchMedia('(max-height: 500px)');
@@ -163,9 +241,28 @@ function initMobileEventListeners() {
         inputState.jump = false;
     }, { passive: false });
 
+    const handleFullscreenButtonPress = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (getFullscreenElement()) {
+            await exitGameFullscreen();
+        } else {
+            hasAttemptedMobileFullscreen = true;
+            await requestGameFullscreen();
+        }
+    };
+
+    mobileFullscreenBtn.addEventListener('touchstart', handleFullscreenButtonPress, { passive: false });
+    mobileFullscreenBtn.addEventListener('click', handleFullscreenButtonPress);
+
     // Touch handlers on window for joystick and camera swipe
     window.addEventListener('touchstart', (e) => {
         if (!detectMobile()) return;
+        if (!hasAttemptedMobileFullscreen) {
+            hasAttemptedMobileFullscreen = true;
+            requestGameFullscreen();
+        }
         
         for (let i = 0; i < e.changedTouches.length; i++) {
             const touch = e.changedTouches[i];
@@ -1258,6 +1355,9 @@ window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
     setupMobileControls();
 });
+
+window.addEventListener('fullscreenchange', setupMobileControls);
+window.addEventListener('webkitfullscreenchange', setupMobileControls);
 
 // Start
 RAPIER.init().then(() => {
