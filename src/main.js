@@ -57,15 +57,218 @@ let cameraAngleAzimuth = 0; // Horizontal angle from behind
 let cameraAnglePolar = Math.PI / 6; // Vertical angle (30 degrees down)
 const cameraRadius = 5;
 
+// Mobile Device Detection and Controls
+function detectMobile() {
+    const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
+    const hasHover = window.matchMedia('(hover: hover)').matches;
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    return isMobileUA || (isTouch && !hasHover) || (isTouch && hasCoarsePointer && window.innerWidth <= 1024);
+}
+
+function setupMobileControls() {
+    const mobileControls = document.getElementById('mobile-controls');
+    const controlsHelp = document.getElementById('controls-help');
+    const uiElement = document.getElementById('ui');
+    
+    if (detectMobile()) {
+        if (mobileControls) mobileControls.style.display = 'block';
+        if (controlsHelp) controlsHelp.style.display = 'none';
+        if (uiElement && window.innerWidth <= 1024) {
+            uiElement.style.fontSize = '1.2rem';
+            uiElement.style.top = '10px';
+            uiElement.style.left = '10px';
+        }
+    } else {
+        if (mobileControls) mobileControls.style.display = 'none';
+        if (controlsHelp) controlsHelp.style.display = 'block';
+    }
+}
+
+// Mobile touch input states
+let joystickTouchId = null;
+let joystickStartPos = { x: 0, y: 0 };
+let cameraTouchId = null;
+let previousTouchPosition = { x: 0, y: 0 };
+
+const defaultJoystickPos = {
+    left: 80,
+    bottom: 80
+};
+
+let joystickBase = null;
+let joystickNub = null;
+let mobileJumpBtn = null;
+
+function initMobileEventListeners() {
+    joystickBase = document.getElementById('joystick-base');
+    joystickNub = document.getElementById('joystick-nub');
+    mobileJumpBtn = document.getElementById('mobile-jump-btn');
+    
+    if (!joystickBase || !joystickNub || !mobileJumpBtn) return;
+    
+    // Set default positions for small screens media query check
+    const checkLandscape = window.matchMedia('(max-height: 500px)');
+    function updateDefaultPos() {
+        if (checkLandscape.matches) {
+            defaultJoystickPos.left = 40;
+            defaultJoystickPos.bottom = 40;
+        } else {
+            defaultJoystickPos.left = 80;
+            defaultJoystickPos.bottom = 80;
+        }
+    }
+    updateDefaultPos();
+    window.addEventListener('resize', updateDefaultPos);
+
+    // Jump button touch events
+    mobileJumpBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        inputState.jump = true;
+    }, { passive: false });
+
+    mobileJumpBtn.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        inputState.jump = false;
+    }, { passive: false });
+
+    mobileJumpBtn.addEventListener('touchcancel', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        inputState.jump = false;
+    }, { passive: false });
+
+    // Touch handlers on window for joystick and camera swipe
+    window.addEventListener('touchstart', (e) => {
+        if (!detectMobile()) return;
+        
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            const touch = e.changedTouches[i];
+            
+            // Ignore touches on jump button
+            if (touch.target.closest('#mobile-jump-btn')) {
+                continue;
+            }
+            
+            // Left half: snap joystick and drag
+            if (touch.clientX < window.innerWidth / 2) {
+                if (joystickTouchId === null) {
+                    joystickTouchId = touch.identifier;
+                    joystickStartPos = { x: touch.clientX, y: touch.clientY };
+                    
+                    const baseRadius = 64; // width/2 of joystick base (128px)
+                    joystickBase.style.left = (touch.clientX - baseRadius) + 'px';
+                    joystickBase.style.top = (touch.clientY - baseRadius) + 'px';
+                    joystickBase.style.bottom = 'auto';
+                    joystickBase.style.opacity = '1';
+                    joystickNub.style.transform = 'translate(0px, 0px)';
+                }
+            } else {
+                // Right half: camera orbit rotation
+                if (cameraTouchId === null) {
+                    cameraTouchId = touch.identifier;
+                    previousTouchPosition = { x: touch.clientX, y: touch.clientY };
+                }
+            }
+        }
+    }, { passive: false });
+
+    window.addEventListener('touchmove', (e) => {
+        if (!detectMobile()) return;
+        
+        // Prevent default gesture behaviours when actively playing
+        if (e.target.closest('#mobile-controls') || joystickTouchId !== null || cameraTouchId !== null) {
+            if (e.cancelable) {
+                e.preventDefault();
+            }
+        }
+
+        for (let i = 0; i < e.touches.length; i++) {
+            const touch = e.touches[i];
+            
+            if (touch.identifier === joystickTouchId) {
+                const dx = touch.clientX - joystickStartPos.x;
+                const dy = touch.clientY - joystickStartPos.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const maxRange = 50;
+                
+                let targetX = dx;
+                let targetY = dy;
+                if (dist > maxRange) {
+                    targetX = (dx / dist) * maxRange;
+                    targetY = (dy / dist) * maxRange;
+                }
+                
+                joystickNub.style.transform = `translate(${targetX}px, ${targetY}px)`;
+                
+                // Map to inputs: y-axis screen coordinates are inverted relative to WebGL
+                const nx = targetX / maxRange;
+                const ny = targetY / maxRange;
+                
+                inputState.forward = ny < -0.15;
+                inputState.backward = ny > 0.15;
+                inputState.left = nx < -0.15;
+                inputState.right = nx > 0.15;
+            }
+            
+            if (touch.identifier === cameraTouchId) {
+                const deltaX = touch.clientX - previousTouchPosition.x;
+                const deltaY = touch.clientY - previousTouchPosition.y;
+                
+                cameraAngleAzimuth -= deltaX * 0.008;
+                cameraAnglePolar += deltaY * 0.008;
+                cameraAnglePolar = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, cameraAnglePolar));
+                
+                previousTouchPosition = { x: touch.clientX, y: touch.clientY };
+            }
+        }
+    }, { passive: false });
+
+    const handleTouchEnd = (e) => {
+        if (!detectMobile()) return;
+        
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            const touch = e.changedTouches[i];
+            
+            if (touch.identifier === joystickTouchId) {
+                joystickTouchId = null;
+                inputState.forward = false;
+                inputState.backward = false;
+                inputState.left = false;
+                inputState.right = false;
+                
+                // Animate/return base to default layout positions
+                joystickBase.style.left = defaultJoystickPos.left + 'px';
+                joystickBase.style.bottom = defaultJoystickPos.bottom + 'px';
+                joystickBase.style.top = 'auto';
+                joystickBase.style.opacity = '0.8';
+                joystickNub.style.transform = 'translate(0px, 0px)';
+            }
+            
+            if (touch.identifier === cameraTouchId) {
+                cameraTouchId = null;
+            }
+        }
+    };
+
+    window.addEventListener('touchend', handleTouchEnd);
+    window.addEventListener('touchcancel', handleTouchEnd);
+}
+
 let isDragging = false;
 let previousMousePosition = { x: 0, y: 0 };
 
 renderer.domElement.addEventListener('mousedown', (e) => {
+    if (detectMobile()) return;
     isDragging = true;
     previousMousePosition = { x: e.clientX, y: e.clientY };
 });
 
 window.addEventListener('mousemove', (e) => {
+    if (detectMobile()) return;
     if (isDragging) {
         const deltaX = e.clientX - previousMousePosition.x;
         const deltaY = e.clientY - previousMousePosition.y;
@@ -81,6 +284,7 @@ window.addEventListener('mousemove', (e) => {
 });
 
 window.addEventListener('mouseup', () => {
+    if (detectMobile()) return;
     isDragging = false;
 });
 
@@ -470,7 +674,7 @@ function createWheelchairColliders(body) {
 
 function loadModels() {
     // 1. Load Track
-    gltfLoader.load('public/drift_race_track_free.glb', (gltf) => {
+    gltfLoader.load('./drift_race_track_free.glb', (gltf) => {
         const trackMesh = gltf.scene;
 
         // Ensure the scene matrix is updated before generating physics
@@ -522,7 +726,7 @@ function loadModels() {
     });
 
     gltfLoader.load(
-        'public/wheel_chair.glb',
+        './wheel_chair.glb',
         (gltf) => {
             const wheelchairMesh = gltf.scene;
             const allWheels = [];
@@ -616,13 +820,13 @@ function loadModels() {
             console.log("Wheelchair loaded and physics created");
 
             // 3. Load Character
-            fbxLoader.load('public/character/source/Wolf3D_readyplayerme_male_01.fbx', (fbx) => {
+            fbxLoader.load('./character/source/Wolf3D_readyplayerme_male_01.fbx', (fbx) => {
                 const character = fbx;
                 character.scale.set(0.01, 0.01, 0.01);
                 character.position.set(0, 0, -5);
 
                 const textureLoader = new THREE.TextureLoader();
-                const diffuseTexture = textureLoader.load('public/character/textures/Wolf3D_Avatar_DIFFUSE.jpeg');
+                const diffuseTexture = textureLoader.load('./character/textures/Wolf3D_Avatar_DIFFUSE.jpeg');
                 diffuseTexture.colorSpace = THREE.SRGBColorSpace;
 
                 character.traverse((child) => {
@@ -631,6 +835,7 @@ function loadModels() {
                         child.receiveShadow = true;
                         child.material = new THREE.MeshStandardMaterial({
                             map: diffuseTexture,
+                            transparent: false,
                             roughness: 0.8
                         });
                     }
@@ -935,11 +1140,14 @@ window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    setupMobileControls();
 });
 
 // Start
 RAPIER.init().then(() => {
     initPhysics();
     loadModels();
+    setupMobileControls();
+    initMobileEventListeners();
     animate();
 });

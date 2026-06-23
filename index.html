@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no" />
     <title>Wheelchair Racing</title>
     <style>
       body {
@@ -10,6 +10,8 @@
         padding: 0;
         overflow: hidden;
         background-color: #000;
+        user-select: none;
+        -webkit-user-select: none;
       }
       #app {
         width: 100vw;
@@ -25,6 +27,7 @@
         font-weight: bold;
         text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
         pointer-events: none;
+        z-index: 5;
       }
       #controls-help {
         position: absolute;
@@ -35,6 +38,108 @@
         font-size: 1rem;
         pointer-events: none;
         text-align: right;
+        z-index: 5;
+      }
+      
+      /* Mobile Controls UI Styling */
+      #mobile-controls {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 10;
+      }
+      
+      #joystick-base {
+        position: absolute;
+        bottom: 80px;
+        left: 80px;
+        width: 128px;
+        height: 128px;
+        pointer-events: auto;
+        touch-action: none;
+        opacity: 0.8;
+        transition: opacity 0.2s ease;
+      }
+      
+      #joystick-pad-svg {
+        width: 128px;
+        height: 128px;
+        display: block;
+      }
+      
+      #joystick-nub {
+        position: absolute;
+        left: 32px;
+        top: 32px;
+        width: 64px;
+        height: 64px;
+        pointer-events: none;
+        transform: translate(0px, 0px);
+      }
+      
+      #joystick-nub-svg {
+        width: 64px;
+        height: 64px;
+        display: block;
+      }
+      
+      #mobile-jump-btn {
+        position: absolute;
+        bottom: 104px;
+        right: 80px;
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.15);
+        border: 2px solid rgba(255, 255, 255, 0.35);
+        color: #ffffff;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        font-weight: bold;
+        font-size: 1.1rem;
+        text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.6);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        pointer-events: auto;
+        touch-action: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        outline: none;
+        user-select: none;
+        -webkit-user-select: none;
+        transition: transform 0.1s ease, background-color 0.1s ease, border-color 0.1s ease;
+      }
+      
+      #mobile-jump-btn:active {
+        transform: scale(0.9);
+        background: rgba(255, 255, 255, 0.3);
+        border-color: rgba(255, 255, 255, 0.6);
+      }
+
+      /* Adjustments for smaller landscape mobile screens */
+      @media (max-height: 500px) {
+        #joystick-base {
+          bottom: 40px;
+          left: 40px;
+          transform: scale(0.85);
+        }
+        #mobile-jump-btn {
+          bottom: 60px;
+          right: 40px;
+          transform: scale(0.85);
+        }
+        #mobile-jump-btn:active {
+          transform: scale(0.75);
+        }
+        #ui {
+          font-size: 1.2rem;
+          top: 10px;
+          left: 10px;
+        }
       }
     </style>
     <!-- Import maps polyfill -->
@@ -58,6 +163,51 @@
       F1 : Collision Debug
     </div>
     <div id="app"></div>
+    
+    <!-- Mobile Controls Overlay -->
+    <div id="mobile-controls" style="display: none;">
+      <div id="joystick-base">
+        <!-- SVG Pad -->
+        <svg id="joystick-pad-svg" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient gradientUnits="userSpaceOnUse" x1="-819.2" x2="819.2" spreadMethod="pad" gradientTransform="matrix(0 0.078125 -0.078125 0 64 64)" id="pad_gradient0">
+              <stop offset="0" stop-color="#333341"/>
+              <stop offset="1" stop-color="#1E1E23"/>
+            </linearGradient>
+          </defs>
+          <g>
+            <path stroke="none" fill="url(#pad_gradient0)" d="M128 64 Q128 90.5 109.25 109.25 90.5 128 64 128 37.5 128 18.75 109.25 7.45 97.95 2.95 83.8 0 74.5 0 64 0 53.5 2.95 44.2 7.45 30.05 18.75 18.75 37.5 0 64 0 90.5 0 109.25 18.75 128 37.5 128 64 M105 23 Q88 6 64 6 40 6 23 23 6 40 6 64 6 88 23 105 40 122 64 122 88 122 105 105 122 88 122 64 122 40 105 23"/>
+            <path stroke="none" fill="#1E1E23" d="M105 23 Q122 40 122 64 122 88 105 105 88 122 64 122 40 122 23 105 6 88 6 64 6 40 23 23 40 6 64 6 88 6 105 23"/>
+            <path fill="none" stroke="#151519" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M105 23 Q122 40 122 64 122 88 105 105 88 122 64 122 40 122 23 105 6 88 6 64 6 40 23 23 40 6 64 6 88 6 105 23"/>
+            <path stroke="none" fill="#323240" d="M59.15 106.35 L59 105.7 59.3 105.25 Q59.55 105 59.95 105 L68.05 105 Q68.4 105 68.7 105.25 L69 105.7 68.9 106.35 64.8 112.55 64.3 112.95 63.7 112.95 63.15 112.55 59.15 106.35"/>
+            <path stroke="none" fill="#323240" d="M59.15 21.65 L63.15 15.45 Q63.35 15.1 63.7 15.05 L64.3 15.05 Q64.6 15.1 64.8 15.45 L68.9 21.65 69 22.3 68.7 22.75 68.05 23 59.95 23 59.3 22.75 59 22.3 59.15 21.65"/>
+            <path stroke="none" fill="#323240" d="M21.65 59.15 L22.3 59 22.75 59.3 23 59.95 23 68.05 22.75 68.7 22.3 69 21.65 68.9 15.45 64.8 15.05 64.3 15.05 63.7 Q15.1 63.35 15.45 63.15 L21.65 59.15"/>
+            <path stroke="none" fill="#323240" d="M106.35 59.15 L112.55 63.15 112.95 63.7 112.95 64.3 112.55 64.8 106.35 68.9 105.7 69 105.25 68.7 105 68.05 105 59.95 Q105 59.55 105.25 59.3 L105.7 59 106.35 59.15"/>
+          </g>
+        </svg>
+        <div id="joystick-nub">
+          <!-- SVG Nub -->
+          <svg id="joystick-nub-svg" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient gradientUnits="userSpaceOnUse" x1="-819.2" x2="819.2" spreadMethod="pad" gradientTransform="matrix(0 -0.0390625 -0.0390625 0 32 32)" id="nub_gradient0">
+                <stop offset="0" stop-color="#333341"/>
+                <stop offset="1" stop-color="#1E1E23"/>
+              </linearGradient>
+              <linearGradient gradientUnits="userSpaceOnUse" x1="-819.2" x2="819.2" spreadMethod="pad" gradientTransform="matrix(0 0.0390625 -0.0390625 0 32 32)" id="nub_gradient1">
+                <stop offset="0" stop-color="#333341"/>
+                <stop offset="1" stop-color="#1E1E23"/>
+              </linearGradient>
+            </defs>
+            <g>
+              <path stroke="none" fill="url(#nub_gradient0)" d="M32 61 Q20 61 11.5 52.5 3 44 3 32 3 20 11.5 11.5 20 3 32 3 44 3 52.5 11.5 61 20 61 32 61 44 52.5 52.5 44 61 32 61"/>
+              <path stroke="none" fill="url(#nub_gradient1)" d="M32 61 Q44 61 52.5 52.5 61 44 61 32 61 20 52.5 11.5 44 3 32 3 20 3 11.5 11.5 3 20 3 32 3 44 11.5 52.5 20 61 32 61 M64 32 Q64 45.25 54.6 54.6 45.25 64 32 64 18.75 64 9.35 54.6 0 45.25 0 32 0 18.75 9.35 9.35 18.75 0 32 0 45.25 0 54.6 9.35 64 18.75 64 32"/>
+              <path fill="none" stroke="#323240" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" d="M32 61 Q44 61 52.5 52.5 61 44 61 32 61 20 52.5 11.5 44 3 32 3 20 3 11.5 11.5 3 20 3 32 3 44 11.5 52.5 20 61 32 61"/>
+            </g>
+          </svg>
+        </div>
+      </div>
+      <button id="mobile-jump-btn">JUMP</button>
+    </div>
     <script type="module" src="./src/main.js"></script>
   </body>
 </html>
