@@ -492,6 +492,7 @@ function createDebugLineMesh(opacity = 0.95) {
     const mesh = new THREE.LineSegments(geometry, material);
     mesh.frustumCulled = false;
     mesh.renderOrder = 999;
+    mesh.visible = collisionDebugEnabled;
     scene.add(mesh);
     return mesh;
 }
@@ -526,6 +527,7 @@ function setDebugGeometry(mesh, positions, colors) {
 function createCollisionDebug() {
     collisionDebugMesh = createDebugLineMesh(0.9);
     wheelRayDebugMesh = createDebugLineMesh(0.95);
+    updateCollisionDebug();
 }
 
 function createRigidBodyBinding(mesh, body) {
