@@ -409,12 +409,61 @@ const wheelchairModelConfig = {
     visualOffsetY: -0.5
 };
 
-let collisionDebugEnabled = true;
+let collisionDebugEnabled = false;
 let collisionDebugMesh = null;
 let wheelRayDebugMesh = null;
 let wheelchairRigidBodyState = null;
 let fallbackGroundCollider = null;
 let wheelchairVisualGroup = null;
+
+// Loading screen state
+let loadingState = {
+    physicsLoaded: false,
+    trackProgress: 0,
+    wheelchairProgress: 0,
+    characterProgress: 0
+};
+
+function updateLoadingProgress() {
+    const loadingText = document.getElementById('loading-text');
+    const progressBar = document.getElementById('progress-bar');
+    const loadingScreen = document.getElementById('loading-screen');
+    
+    if (!loadingText || !progressBar) return;
+    
+    // Physics counts as 10% of total progress, assets count as 90%
+    let assetProgress = (loadingState.trackProgress + loadingState.wheelchairProgress + loadingState.characterProgress) / 3;
+    let totalProgress = 0;
+    
+    if (loadingState.physicsLoaded) {
+        totalProgress = 10 + (assetProgress * 0.9);
+    } else {
+        totalProgress = 5;
+    }
+    
+    totalProgress = Math.min(100, Math.round(totalProgress));
+    
+    progressBar.style.width = totalProgress + '%';
+    
+    if (totalProgress < 10) {
+        loadingText.innerText = 'Initializing physics engine...';
+    } else if (totalProgress < 95) {
+        loadingText.innerText = `Downloading game assets... ${totalProgress}%`;
+    } else {
+        loadingText.innerText = 'Ready!';
+    }
+    
+    if (totalProgress >= 100) {
+        setTimeout(() => {
+            if (loadingScreen) {
+                loadingScreen.style.opacity = '0';
+                setTimeout(() => {
+                    loadingScreen.style.display = 'none';
+                }, 500);
+            }
+        }, 300);
+    }
+}
 
 const interpolatedWheelchairPosition = new THREE.Vector3();
 const interpolatedWheelchairQuaternion = new THREE.Quaternion();
@@ -614,6 +663,8 @@ function initPhysics() {
     fallbackGroundCollider = world.createCollider(groundColliderDesc);
 
     createCollisionDebug();
+    loadingState.physicsLoaded = true;
+    updateLoadingProgress();
 }
 
 function configureVehicleWheel(controller, index, wheelSetup) {
@@ -696,56 +747,72 @@ function createWheelchairColliders(body) {
 
 function loadModels() {
     // 1. Load Track
-    gltfLoader.load(getAssetPath('./drift_race_track_free.glb'), (gltf) => {
-        const trackMesh = gltf.scene;
+    gltfLoader.load(
+        getAssetPath('./drift_race_track_free.glb'), 
+        (gltf) => {
+            const trackMesh = gltf.scene;
 
-        // Ensure the scene matrix is updated before generating physics
-        trackMesh.updateMatrixWorld(true);
+            // Ensure the scene matrix is updated before generating physics
+            trackMesh.updateMatrixWorld(true);
 
-        trackMesh.traverse((child) => {
-            if (child.isMesh) {
-                child.receiveShadow = true;
+            trackMesh.traverse((child) => {
+                if (child.isMesh) {
+                    child.receiveShadow = true;
 
-                // Generate Trimesh collider for the track
-                const geometry = child.geometry;
-                const vertices = geometry.attributes.position.array;
-                const indices = geometry.index ? geometry.index.array : undefined;
+                    // Generate Trimesh collider for the track
+                    const geometry = child.geometry;
+                    const vertices = geometry.attributes.position.array;
+                    const indices = geometry.index ? geometry.index.array : undefined;
 
-                if (vertices && vertices.length > 0) {
-                    // Apply the mesh's world transform to the vertices
-                    // so the physics collider matches the visual model exactly
-                    const worldVertices = new Float32Array(vertices.length);
-                    const v = new THREE.Vector3();
-                    for (let i = 0; i < vertices.length; i += 3) {
-                        v.set(vertices[i], vertices[i + 1], vertices[i + 2]);
-                        v.applyMatrix4(child.matrixWorld);
-                        worldVertices[i] = v.x;
-                        worldVertices[i + 1] = v.y;
-                        worldVertices[i + 2] = v.z;
+                    if (vertices && vertices.length > 0) {
+                        // Apply the mesh's world transform to the vertices
+                        // so the physics collider matches the visual model exactly
+                        const worldVertices = new Float32Array(vertices.length);
+                        const v = new THREE.Vector3();
+                        for (let i = 0; i < vertices.length; i += 3) {
+                            v.set(vertices[i], vertices[i + 1], vertices[i + 2]);
+                            v.applyMatrix4(child.matrixWorld);
+                            worldVertices[i] = v.x;
+                            worldVertices[i + 1] = v.y;
+                            worldVertices[i + 2] = v.z;
+                        }
+
+                        let colliderDesc;
+                        if (indices) {
+                            colliderDesc = RAPIER.ColliderDesc.trimesh(worldVertices, indices);
+                        } else {
+                            // If geometry is unindexed, we must create a sequence of indices
+                            const genIndices = new Uint32Array(worldVertices.length / 3);
+                            for (let i = 0; i < genIndices.length; i++) genIndices[i] = i;
+                            colliderDesc = RAPIER.ColliderDesc.trimesh(worldVertices, genIndices);
+                        }
+
+                        colliderDesc.setFriction(1.2);
+                        world.createCollider(colliderDesc);
                     }
-
-                    let colliderDesc;
-                    if (indices) {
-                        colliderDesc = RAPIER.ColliderDesc.trimesh(worldVertices, indices);
-                    } else {
-                        // If geometry is unindexed, we must create a sequence of indices
-                        const genIndices = new Uint32Array(worldVertices.length / 3);
-                        for (let i = 0; i < genIndices.length; i++) genIndices[i] = i;
-                        colliderDesc = RAPIER.ColliderDesc.trimesh(worldVertices, genIndices);
-                    }
-
-                    colliderDesc.setFriction(1.2);
-                    world.createCollider(colliderDesc);
                 }
+            });
+            scene.add(trackMesh);
+            if (fallbackGroundCollider) {
+                world.removeCollider(fallbackGroundCollider, false);
+                fallbackGroundCollider = null;
             }
-        });
-        scene.add(trackMesh);
-        if (fallbackGroundCollider) {
-            world.removeCollider(fallbackGroundCollider, false);
-            fallbackGroundCollider = null;
+            console.log("Track loaded with trimesh physics colliders!");
+            loadingState.trackProgress = 100;
+            updateLoadingProgress();
+        },
+        (xhr) => {
+            if (xhr.lengthComputable && xhr.total > 0) {
+                loadingState.trackProgress = (xhr.loaded / xhr.total) * 100;
+            } else {
+                loadingState.trackProgress = Math.min(99, (xhr.loaded / 57555548) * 100);
+            }
+            updateLoadingProgress();
+        },
+        (error) => {
+            console.error('Error loading track', error);
         }
-        console.log("Track loaded with trimesh physics colliders!");
-    });
+    );
 
     gltfLoader.load(
         getAssetPath('./wheel_chair.glb'),
@@ -840,33 +907,58 @@ function loadModels() {
             rigidBodies.push(wheelchairRigidBodyState);
 
             console.log("Wheelchair loaded and physics created");
+            loadingState.wheelchairProgress = 100;
+            updateLoadingProgress();
 
             // 3. Load Character
-            fbxLoader.load(getAssetPath('./character/source/Wolf3D_readyplayerme_male_01.fbx'), (fbx) => {
-                const character = fbx;
-                character.scale.set(0.01, 0.01, 0.01);
-                character.position.set(0, 0, -5);
+            fbxLoader.load(
+                getAssetPath('./character/source/Wolf3D_readyplayerme_male_01.fbx'), 
+                (fbx) => {
+                    const character = fbx;
+                    character.scale.set(0.01, 0.01, 0.01);
+                    character.position.set(0, 0, -5);
 
-                const textureLoader = new THREE.TextureLoader();
-                const diffuseTexture = textureLoader.load(getAssetPath('./character/textures/Wolf3D_Avatar_DIFFUSE.jpeg'));
-                diffuseTexture.colorSpace = THREE.SRGBColorSpace;
+                    const textureLoader = new THREE.TextureLoader();
+                    const diffuseTexture = textureLoader.load(getAssetPath('./character/textures/Wolf3D_Avatar_DIFFUSE.jpeg'));
+                    diffuseTexture.colorSpace = THREE.SRGBColorSpace;
 
-                character.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                        child.material = new THREE.MeshStandardMaterial({
-                            map: diffuseTexture,
-                            transparent: false,
-                            roughness: 0.8
-                        });
+                    character.traverse((child) => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                            child.material = new THREE.MeshStandardMaterial({
+                                map: diffuseTexture,
+                                transparent: false,
+                                roughness: 0.8
+                            });
+                        }
+                    });
+                    scene.add(character);
+                    console.log("Character loaded and added to scene directly");
+                    loadingState.characterProgress = 100;
+                    updateLoadingProgress();
+                },
+                (xhr) => {
+                    if (xhr.lengthComputable && xhr.total > 0) {
+                        loadingState.characterProgress = (xhr.loaded / xhr.total) * 100;
+                    } else {
+                        loadingState.characterProgress = Math.min(99, (xhr.loaded / 2000000) * 100);
                     }
-                });
-                scene.add(character);
-                console.log("Character loaded and added to scene directly");
-            });
+                    updateLoadingProgress();
+                },
+                (error) => {
+                    console.error('Error loading character', error);
+                }
+            );
         },
-        undefined,
+        (xhr) => {
+            if (xhr.lengthComputable && xhr.total > 0) {
+                loadingState.wheelchairProgress = (xhr.loaded / xhr.total) * 100;
+            } else {
+                loadingState.wheelchairProgress = Math.min(99, (xhr.loaded / 36703812) * 100);
+            }
+            updateLoadingProgress();
+        },
         (error) => {
             console.error('An error happened loading the wheelchair', error);
         }
