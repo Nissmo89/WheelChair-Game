@@ -67,6 +67,28 @@ function detectMobile() {
     return isMobileUA || (isTouch && !hasHover) || (isTouch && hasCoarsePointer && window.innerWidth <= 1024);
 }
 
+// Helper to resolve asset path dynamically
+function getAssetPath(url) {
+    // If running raw in the browser (no Vite/bundler), assets are in the public/ folder.
+    // If running under Vite (dev or build), assets are served at the root.
+    const isRawBrowser = typeof import.meta.env === 'undefined';
+    
+    if (isRawBrowser) {
+        // Ensure it starts with public/
+        if (!url.startsWith('public/')) {
+            const cleanUrl = url.replace(/^\.\//, '');
+            return 'public/' + cleanUrl;
+        }
+        return url;
+    } else {
+        // Under Vite, strip 'public/' prefix because Vite serves public/ contents at root
+        if (url.startsWith('public/')) {
+            return './' + url.substring(7);
+        }
+        return url;
+    }
+}
+
 function setupMobileControls() {
     const mobileControls = document.getElementById('mobile-controls');
     const controlsHelp = document.getElementById('controls-help');
@@ -674,7 +696,7 @@ function createWheelchairColliders(body) {
 
 function loadModels() {
     // 1. Load Track
-    gltfLoader.load('./drift_race_track_free.glb', (gltf) => {
+    gltfLoader.load(getAssetPath('./drift_race_track_free.glb'), (gltf) => {
         const trackMesh = gltf.scene;
 
         // Ensure the scene matrix is updated before generating physics
@@ -726,7 +748,7 @@ function loadModels() {
     });
 
     gltfLoader.load(
-        './wheel_chair.glb',
+        getAssetPath('./wheel_chair.glb'),
         (gltf) => {
             const wheelchairMesh = gltf.scene;
             const allWheels = [];
@@ -820,13 +842,13 @@ function loadModels() {
             console.log("Wheelchair loaded and physics created");
 
             // 3. Load Character
-            fbxLoader.load('./character/source/Wolf3D_readyplayerme_male_01.fbx', (fbx) => {
+            fbxLoader.load(getAssetPath('./character/source/Wolf3D_readyplayerme_male_01.fbx'), (fbx) => {
                 const character = fbx;
                 character.scale.set(0.01, 0.01, 0.01);
                 character.position.set(0, 0, -5);
 
                 const textureLoader = new THREE.TextureLoader();
-                const diffuseTexture = textureLoader.load('./character/textures/Wolf3D_Avatar_DIFFUSE.jpeg');
+                const diffuseTexture = textureLoader.load(getAssetPath('./character/textures/Wolf3D_Avatar_DIFFUSE.jpeg'));
                 diffuseTexture.colorSpace = THREE.SRGBColorSpace;
 
                 character.traverse((child) => {
